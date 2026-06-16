@@ -750,7 +750,22 @@ def create_post_image(title, image_url, page_config):
             )
 
         font_badge = get_font(30)
-        font_logo = get_font(44)
+        # خط خاص للشعار يدعم الحروف الفارسية (چ، پ، گ)
+        font_logo = None
+        for _persian_path in (
+            "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+            "/usr/share/fonts/truetype/noto/NotoKufiArabic-Bold.ttf",
+            "/usr/share/fonts/truetype/fonts-sil-scheherazade/ScheherazadeNew-Bold.ttf",
+        ):
+            if os.path.exists(_persian_path):
+                try:
+                    font_logo = ImageFont.truetype(_persian_path, 44)
+                    break
+                except (OSError, IOError):
+                    continue
+        if font_logo is None:
+            font_logo = get_font(44)
         badge_y = (BAR - 50) // 2 + 5
         _draw_breaking_news_badge(draw, 40, badge_y, font_badge, p.get('accent', (200, 50, 50)))
 
