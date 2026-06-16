@@ -57,9 +57,20 @@ except ImportError as e:
     _HAS_RTL = False
 
 
+try:
+    from PIL import features as _pil_features
+    _HAS_RAQM = _pil_features.check('raqm')
+except Exception:
+    _HAS_RAQM = False
+
+
 def ar(text):
     if not text:
         return ""
+    # إذا libraqm متاح، يعالج العربية تلقائياً (لا نسوي reshape/bidi لتفادي العكس المزدوج)
+    if _HAS_RAQM:
+        return str(text)
+    # غير ذلك، نطبّق reshape + bidi يدوياً
     if not _HAS_RTL:
         return str(text)
     try:
