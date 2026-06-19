@@ -1,0 +1,115 @@
+name: نشر الأخبار 24/7
+
+# ============================================================
+# v26: محسّن للموثوقية على GitHub Actions Free Tier
+# - كل 15 دقيقة (بدل 5) = موثوق أكثر
+# - كل تشغيل ينشر حتى 30 منشور
+# - يجلب من 21 مصدر (15 + 6 جديد)
+# - يتجاهل الأخبار بدون صورة
+# - كشف تكرار محسّن للعربية
+# ============================================================
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+
+  workflow_dispatch:
+    inputs:
+      max_posts:
+        description: 'الحد الأقصى للمنشورات'
+        required: false
+        default: '30'
+        type: string
+      verify_only:
+        description: 'فحص المصادر فقط بدون نشر'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: news-publisher
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: نشر مستمر
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: 📥 تحميل كود المشروع
+        uses: actions/checkout@v4
+
+      - name: 🐍 إعداد Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 🔤 تثبيت الخطوط العربية
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            fonts-noto \
+            fonts-noto-core \
+            fonts-amiri \
+            fonts-hosny-amiri \
+            fonts-kacst \
+            fonts-kacst-one \
+            fonts-sil-scheherazade \
+            fonts-sil-lateef \
+            fontconfig 2>&1 | tail -5 || true
+          sudo fc-cache -fv > /dev/null 2>&1 || true
+
+      - name: 📦 تثبيت مكتبات Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 💾 استرجاع كاش قاعدة البيانات
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: news_cache_v25.db
+          key: news-db-v26-${{ github.run_id }}
+          restore-keys: |
+            news-db-v26-
+            news-db-v25-
+
+      - name: 🚀 تشغيل النشر
+        env:
+          PAGE_SALSSAL: ${{ secrets.PAGE_SALSSAL }}
+          PAGE_CHAI: ${{ secrets.PAGE_CHAI }}
+          PAGE_TABOGA: ${{ secrets.PAGE_TABOGA }}
+          PAGE_TEIN: ${{ secrets.PAGE_TEIN }}
+          NEWS_DB_PATH: news_cache_v25.db
+          MAX_POSTS: ${{ inputs.max_posts || '30' }}
+          VERIFY_ONLY: ${{ inputs.verify_only || 'false' }}
+        run: |
+          if [ "$VERIFY_ONLY" = "true" ]; then
+            timeout 600 python publisher_v25.py --verify-sources
+          else
+            timeout 600 python publisher_v25.py --once --max-posts "$MAX_POSTS" || true
+            echo "✅ انتهت دورة النشر"
+          fi
+
+      - name: 💾 حفظ كاش قاعدة البيانات
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: news_cache_v25.db
+          key: news-db-v26-${{ github.run_id }}
+
+      - name: 📋 رفع اللوقات عند الفشل
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ github.run_id }}
+          path: |
+            *.log
+            news_cache_v25.db
+          retention-days: 7
+          if-no-files-found: ignore
