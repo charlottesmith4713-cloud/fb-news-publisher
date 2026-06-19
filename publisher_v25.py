@@ -100,11 +100,20 @@ except ImportError as e:
     _HAS_RTL = False
 
 
-def ar(text: Optional[str]) -> str:
-    """تحويل النص العربي للعرض الصحيح (reshape + bidi).
+try:
+    from PIL import features as _pil_features
+    _HAS_RAQM = _pil_features.check('raqm')
+except Exception:
+    _HAS_RAQM = False
 
-    v23 كان يستخدم reshape فقط، مما يسبب عرض الكلمات معكوسة على الصور.
-    v24 يضيف get_display من python-bidi لترتيب صحيح للنص.
+
+def ar(text: Optional[str]) -> str:
+    """تحويل النص العربي للعرض الصحيح.
+
+    v26 (الإصدار النهائي): دائماً نطبّق reshape + bidi لأن:
+    - Pillow الجديد (12.x) لا يعكس النص العربي تلقائياً
+    - نحتاج reshape لربط الحروف العربية
+    - نحتاج bidi لترتيب الكلمات من اليمين لليسار
     """
     if not text:
         return ""
