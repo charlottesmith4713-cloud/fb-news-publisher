@@ -412,7 +412,7 @@ def is_iraqi_news(title):
         if kw.lower() in title_lower:
             return True
     return False
-  def extract_image_from_entry(entry, base_url=''):
+    def extract_image_from_entry(entry, base_url=''):
     try:
         if hasattr(entry, 'media_content') and entry.media_content:
             url = entry.media_content[0].get('url', '')
