@@ -1,0 +1,84 @@
+name: نشر الأخبار 24/7
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: news-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: تثبيت libraqm والخطوط (يدعم العربي + الإنجليزي)
+        run: |
+          # تفعيل مستودع universe
+          sudo add-apt-repository universe -y || true
+          sudo apt-get update -qq
+          
+          # libraqm للمعالجة الذكية للنص العربي
+          sudo apt-get install -y libraqm0 fontconfig || true
+          
+          # Noto Sans Arabic: يدعم العربي + اللاتيني + الأرقام في خط واحد
+          sudo apt-get install -y fonts-noto fonts-noto-core fonts-noto-extra || true
+          
+          # Amiri: خط جميل للعربية فقط (احتياطي)
+          sudo apt-get install -y fonts-amiri || true
+          
+          # خطوط إضافية للدعم الكامل
+          sudo apt-get install -y fonts-kacst fonts-sil-scheherazade fonts-dejavu || true
+          
+          sudo fc-cache -fv
+          
+          echo "==== فحص الخطوط ===="
+          ls /usr/share/fonts/truetype/noto/NotoSansArabic*.ttf 2>/dev/null && echo "✅ Noto Sans Arabic" || echo "❌ Noto Sans Arabic مفقود"
+          ls /usr/share/fonts/truetype/noto/NotoNaskhArabic*.ttf 2>/dev/null && echo "✅ Noto Naskh Arabic" || echo "ℹ️ Noto Naskh غير موجود"
+          ls /usr/share/fonts/truetype/amiri/*.ttf 2>/dev/null && echo "✅ Amiri" || echo "ℹ️ Amiri غير موجود"
+          
+          echo "==== الخطوط العربية المتاحة ===="
+          fc-list :lang=ar family 2>/dev/null | sort -u | head -10
+
+      - name: تثبيت مكتبات Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+          echo "==== فحص libraqm في Pillow ===="
+          python -c "from PIL import features; print(f'libraqm: {features.check(\"raqm\")}')"
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: news_cache_v25.db
+          key: db-${{ github.run_id }}
+          restore-keys: db-
+
+      - name: تشغيل النشر
+        env:
+          PAGE_SALSSAL: ${{ secrets.PAGE_SALSSAL }}
+          PAGE_CHAI: ${{ secrets.PAGE_CHAI }}
+          PAGE_TABOGA: ${{ secrets.PAGE_TABOGA }}
+          PAGE_TEIN: ${{ secrets.PAGE_TEIN }}
+          NEWS_DB_PATH: news_cache_v25.db
+        run: |
+          timeout 600 python publisher_v25.py --once --max-posts 30 || true
+          echo "✅ انتهت دورة النشر"
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: news_cache_v25.db
+          key: db-${{ github.run_id }}
